@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FAF6EF;
+  --bg-soft: #F3ECDF;
+  --text: #2B2622;
+  --text-soft: #7A7268;
+  --border: rgba(43, 38, 34, 0.1);
+  --accent: #4B5D45;
+}
+
+.dark {
+  --bg: #17140F;
+  --bg-soft: #1F1B15;
+  --text: #F2EBDD;
+  --text-soft: #A79E8F;
+  --border: rgba(242, 235, 221, 0.1);
+  --accent: #C9AE8C;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .3s ease, color .3s ease;
+}
+
+.font-display {
+  font-family: 'Cormorant Garamond', serif;
+}
+.font-serif {
+  font-family: 'Libre Baskerville', Georgia, serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* poetry line preservation */
+.poetry-body {
+  white-space: pre-wrap;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  line-height: 2;
+}
+
+.story-body {
+  font-family: 'Libre Baskerville', Georgia, serif;
+  line-height: 1.85;
+}
+.story-body p {
+  margin-bottom: 1.4em;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
