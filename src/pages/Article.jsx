@@ -64,25 +64,27 @@ export default function Article() {
             : post.content}
         </div>
 
-        <div className="mt-12 flex flex-wrap items-center gap-6 border-y border-[var(--border)] py-5">
-          <button onClick={() => toggleLike(post.id)} className="inline-flex items-center gap-2 text-sm">
-            <Heart size={18} className={likes[post.id] ? 'fill-wine text-wine' : 'text-[var(--text-soft)]'} />
-            {post.likes}
-          </button>
-          <button onClick={() => toggleBookmark(post.id)} className="inline-flex items-center gap-2 text-sm">
-            <Bookmark size={18} className={bookmarks[post.id] ? 'fill-[var(--text)] text-[var(--text)]' : 'text-[var(--text-soft)]'} />
-            Bookmark
-          </button>
-          <span className="inline-flex items-center gap-2 text-sm text-[var(--text-soft)]">
-            <MessageCircle size={18} /> {post.comments?.length || 0}
-          </span>
-          <button onClick={share} className="inline-flex items-center gap-2 text-sm text-[var(--text-soft)]">
-            <Share2 size={18} /> Share
-          </button>
+        <div className="mt-12 border-y border-[var(--border)] py-5">
+          <div className="flex flex-wrap items-center gap-6">
+            <button onClick={() => toggleLike(post.id)} className="inline-flex items-center gap-2 text-sm">
+              <Heart size={18} className={likes[post.id] ? 'fill-wine text-wine' : 'text-[var(--text-soft)]'} />
+              {post.likes}
+            </button>
+            <button onClick={() => toggleBookmark(post.id)} className="inline-flex items-center gap-2 text-sm">
+              <Bookmark size={18} className={bookmarks[post.id] ? 'fill-[var(--text)] text-[var(--text)]' : 'text-[var(--text-soft)]'} />
+              Bookmark
+            </button>
+            <span className="inline-flex items-center gap-2 text-sm text-[var(--text-soft)]">
+              <MessageCircle size={18} /> {post.comments?.length || 0}
+            </span>
+            <button onClick={share} className="inline-flex items-center gap-2 text-sm text-[var(--text-soft)] md:ml-auto">
+              <Share2 size={18} /> Share
+            </button>
+          </div>
           {post.type === 'poetry' && (
             <button
               onClick={() => setShowExport(true)}
-              className="ml-auto inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-4 py-2 text-xs hover:border-[var(--text)]"
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border)] px-4 py-2.5 text-xs hover:border-[var(--text)] md:w-auto"
             >
               <Instagram size={15} /> Share to Instagram
             </button>
