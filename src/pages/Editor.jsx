@@ -21,6 +21,7 @@ export default function Editor() {
   const [showPreview, setShowPreview] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const idRef = useRef(existing?.id || null)
+  const publishingRef = useRef(false)
 
   const textareaRef = useRef(null)
 
@@ -28,6 +29,7 @@ export default function Editor() {
   useEffect(() => {
     if (!currentUserId) return
     if (!title && !content) return
+    if (publishingRef.current) return
     const t = setTimeout(async () => {
       const savedId = await saveDraft({ id: idRef.current, title, content, cover, type: poetryMode ? 'poetry' : 'story' })
       if (savedId) {
@@ -144,6 +146,8 @@ export default function Editor() {
         <PublishModal
           onClose={() => setShowPublish(false)}
           onPublish={async (meta) => {
+            if (publishingRef.current) return
+            publishingRef.current = true
             const post = await publishPost({
               id: idRef.current,
               title,
@@ -152,7 +156,12 @@ export default function Editor() {
               type: poetryMode ? 'poetry' : 'story',
               ...meta,
             })
-            if (post) navigate(`/read/${post.id}`)
+            if (post) {
+              idRef.current = null
+              navigate(`/read/${post.id}`, { replace: true })
+            } else {
+              publishingRef.current = false
+            }
           }}
         />
       )}
@@ -165,18 +174,25 @@ function PublishModal({ onClose, onPublish }) {
   const [category, setCategory] = useState('Poetry')
   const [tagsInput, setTagsInput] = useState('')
   const [visibility, setVisibility] = useState('public')
+  const [busy, setBusy] = useState(false)
 
-  function submit() {
+  async function submit() {
+    if (busy) return
+    setBusy(true)
     const tags = tagsInput
       .split(/[,\s]+/)
       .map((t) => t.replace('#', '').trim())
       .filter(Boolean)
-    onPublish({ subtitle, category, tags, visibility })
+    try {
+      await onPublish({ subtitle, category, tags, visibility })
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50">
-      <div className="w-full md:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-[var(--bg)] p-6">
+      <div className="w-full md:max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-[var(--bg)] p-6 pb-0">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-display text-xl">Publish Story</h3>
           <button onClick={onClose} className="text-[var(--text-soft)] hover:text-[var(--text)]">
@@ -238,9 +254,11 @@ function PublishModal({ onClose, onPublish }) {
             </div>
           </div>
 
-          <button onClick={submit} className="w-full rounded-full bg-[var(--text)] py-3 text-sm text-[var(--bg)] hover:opacity-90">
-            Publish Story
-          </button>
+          <div className="sticky bottom-0 -mx-6 border-t border-[var(--border)] bg-[var(--bg)] px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <button onClick={submit} disabled={busy} className="w-full rounded-full bg-[var(--text)] py-3 text-sm text-[var(--bg)] hover:opacity-90 disabled:opacity-50">
+              {busy ? 'Memublikasikan…' : 'Publish Story'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

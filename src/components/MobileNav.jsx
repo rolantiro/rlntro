@@ -1,13 +1,13 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, Compass, PenLine, Users, MessageCircle, User } from 'lucide-react'
+import { Home, Compass, PenLine, Users, MessageCircle, User, Sun, Moon } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 
 const itemClass = ({ isActive }) =>
   `flex flex-col items-center gap-1 text-[10px] ${isActive ? 'text-[var(--text)]' : 'text-[var(--text-soft)]'}`
 
 export default function MobileNav() {
-  const { currentUserId, getAuthor, setAuthModalOpen, unreadCount } = useApp()
+  const { currentUserId, getAuthor, setAuthModalOpen, unreadCount, theme, toggleTheme } = useApp()
   const me = getAuthor(currentUserId)
 
   return (
@@ -47,6 +47,10 @@ export default function MobileNav() {
             Masuk
           </button>
         )}
+        <button onClick={toggleTheme} aria-label="Ganti tema" className="flex flex-col items-center gap-1 text-[10px] text-[var(--text-soft)]">
+          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+          Tema
+        </button>
       </div>
     </nav>
   )
