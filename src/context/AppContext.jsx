@@ -4,7 +4,7 @@ import { loadState, saveState, readingTime } from '../lib/storage.js'
 
 const AppContext = createContext(null)
 
-const POST_SELECT = '*, author:profiles(*), comments(*, author:profiles(*))'
+const POST_SELECT = '*, author:profiles!author_id(*), comments(*, author:profiles!author_id(*))'
 
 export function AppProvider({ children }) {
   const [theme, setTheme] = useState(() => loadState('theme', 'light'))
@@ -188,7 +188,7 @@ export function AppProvider({ children }) {
       const { data, error } = await supabase
         .from('comments')
         .insert({ post_id: postId, author_id: currentUserId, text })
-        .select('*, author:profiles(*)')
+        .select('*, author:profiles!author_id(*)')
         .single()
 
       if (error || !data) {
@@ -274,6 +274,7 @@ export function AppProvider({ children }) {
 
       const { data, error } = await supabase.from('posts').insert(payload).select(POST_SELECT).single()
       if (error || !data) {
+        console.error('publish error', error)
         showToast('Gagal mempublikasikan')
         return null
       }
