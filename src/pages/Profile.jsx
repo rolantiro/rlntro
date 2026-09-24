@@ -12,7 +12,7 @@ const TABS = ['Stories', 'Poetry', 'Quotes', 'Bookmarks']
 
 export default function Profile() {
   const { username } = useParams()
-  const { authors, authorsLoading, posts, bookmarks, follows, toggleFollow, currentUserId, updateMe, drafts, deleteDraft } = useApp()
+  const { authors, authorsLoading, posts, bookmarks, follows, followedBy, toggleFollow, currentUserId, updateMe, drafts, deleteDraft } = useApp()
   const [tab, setTab] = useState('Stories')
   const [editing, setEditing] = useState(false)
 
@@ -40,7 +40,7 @@ export default function Profile() {
       <div className="mb-10 flex flex-col items-center text-center">
         <img src={author.avatar} alt={author.name} className="h-24 w-24 rounded-full object-cover mb-4" />
         <h1 className="font-display text-3xl mb-1">{author.name}</h1>
-        <p className="text-sm text-[var(--text-soft)] mb-3">@{author.username}</p>
+        <p className="text-sm text-[var(--text-soft)] mb-3">@{author.username}{!isMe && followedBy[author.id] && <span className="ml-2 rounded-full border border-[var(--border)] px-2 py-0.5 text-xs">Mengikutimu</span>}</p>
         <p className="max-w-sm text-sm text-[var(--text-soft)] mb-5">{author.bio}</p>
 
         <div className="flex items-center gap-6 text-sm mb-6">
@@ -54,14 +54,21 @@ export default function Profile() {
             {editing ? 'Selesai' : 'Edit Profile'}
           </button>
         ) : (
-          <button
-            onClick={() => toggleFollow(author.id)}
-            className={`rounded-full border px-5 py-2 text-sm ${
-              follows[author.id] ? 'border-[var(--border)] text-[var(--text-soft)]' : 'border-[var(--text)] bg-[var(--text)] text-[var(--bg)]'
-            }`}
-          >
-            {follows[author.id] ? 'Mengikuti' : 'Follow'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => toggleFollow(author.id)}
+              className={`rounded-full border px-5 py-2 text-sm ${
+                follows[author.id] ? 'border-[var(--border)] text-[var(--text-soft)]' : 'border-[var(--text)] bg-[var(--text)] text-[var(--bg)]'
+              }`}
+            >
+              {follows[author.id] ? (followedBy[author.id] ? 'Teman' : 'Mengikuti') : followedBy[author.id] ? 'Follow Back' : 'Follow'}
+            </button>
+            {follows[author.id] && followedBy[author.id] && (
+              <Link to={`/chat/${author.username}`} className="rounded-full border border-[var(--border)] px-5 py-2 text-sm hover:border-[var(--text)]">
+                Pesan
+              </Link>
+            )}
+          </div>
         )}
       </div>
 

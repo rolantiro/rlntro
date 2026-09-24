@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Search, Bookmark, Sun, Moon, Feather } from 'lucide-react'
+import { Search, Bookmark, Sun, Moon, Feather, Users, MessageCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 
 const navLinkClass = ({ isActive }) =>
@@ -9,7 +9,7 @@ const navLinkClass = ({ isActive }) =>
   }`
 
 export default function Navbar() {
-  const { theme, toggleTheme, currentUserId, getAuthor, setAuthModalOpen } = useApp()
+  const { theme, toggleTheme, currentUserId, getAuthor, setAuthModalOpen, unreadCount } = useApp()
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
   const me = getAuthor(currentUserId)
@@ -49,6 +49,15 @@ export default function Navbar() {
           <button onClick={toggleTheme} aria-label="Toggle dark mode" className="text-[var(--text-soft)] hover:text-[var(--text)]">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
+
+          <Link to="/friends" aria-label="Teman" className="text-[var(--text-soft)] hover:text-[var(--text)]">
+            <Users size={18} />
+          </Link>
+
+          <Link to="/chat" aria-label="Pesan" className="relative text-[var(--text-soft)] hover:text-[var(--text)]">
+            <MessageCircle size={18} />
+            {unreadCount > 0 && <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-wine" />}
+          </Link>
 
           <Link to="/bookmarks" aria-label="Bookmarks" className="text-[var(--text-soft)] hover:text-[var(--text)]">
             <Bookmark size={18} />

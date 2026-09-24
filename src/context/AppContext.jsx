@@ -17,7 +17,9 @@ export function AppProvider({ children }) {
   const [drafts, setDrafts] = useState([])
   const [likes, setLikes] = useState({}) // postId -> true
   const [bookmarks, setBookmarks] = useState({}) // postId -> true
-  const [follows, setFollows] = useState({}) // authorId -> true
+  const [follows, setFollows] = useState({}) // authorId -> true (yang saya ikuti)
+  const [followedBy, setFollowedBy] = useState({}) // authorId -> true (yang mengikuti saya)
+  const [messages, setMessages] = useState([]) // pesan saya, urut lama -> baru
   const [toast, setToast] = useState(null)
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
@@ -71,18 +73,24 @@ export function AppProvider({ children }) {
       setLikes({})
       setBookmarks({})
       setFollows({})
+      setFollowedBy({})
+      setMessages([])
       setDrafts([])
       return
     }
-    const [{ data: likeRows }, { data: bmRows }, { data: followRows }, { data: draftRows }] = await Promise.all([
+    const [{ data: likeRows }, { data: bmRows }, { data: followRows }, { data: draftRows }, { data: fbRows }, { data: msgRows }] = await Promise.all([
       supabase.from('likes').select('post_id').eq('user_id', uid),
       supabase.from('bookmarks').select('post_id').eq('user_id', uid),
       supabase.from('follows').select('following_id').eq('follower_id', uid),
       supabase.from('drafts').select('*').eq('author_id', uid).order('updated_at', { ascending: false }),
+      supabase.from('follows').select('follower_id').eq('following_id', uid),
+      supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(500),
     ])
     setLikes(Object.fromEntries((likeRows || []).map((r) => [r.post_id, true])))
     setBookmarks(Object.fromEntries((bmRows || []).map((r) => [r.post_id, true])))
     setFollows(Object.fromEntries((followRows || []).map((r) => [r.following_id, true])))
+    setFollowedBy(Object.fromEntries((fbRows || []).map((r) => [r.follower_id, true])))
+    setMessages((msgRows || []).reverse())
     setDrafts(
       (draftRows || []).map((d) => ({
         id: d.id,
@@ -288,6 +296,64 @@ export function AppProvider({ children }) {
     [currentUserId, requireAuth, showToast, deleteDraft]
   )
 
+  const refreshFollowers = useCallback(async () => {
+    if (!currentUserId) return
+    const { data } = await supabase.from('follows').select('follower_id').eq('following_id', currentUserId)
+    setFollowedBy(Object.fromEntries((data || []).map((r) => [r.follower_id, true])))
+  }, [currentUserId])
+
+  // pesan masuk realtime
+  useEffect(() => {
+    if (!currentUserId) return
+    const ch = supabase
+      .channel(`msgs-${currentUserId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${currentUserId}` },
+        (payload) => setMessages((prev) => (prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new]))
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [currentUserId])
+
+  const sendMessage = useCallback(
+    async (recipientId, text) => {
+      if (!requireAuth()) return false
+      const body = text.trim()
+      if (!body) return false
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({ sender_id: currentUserId, recipient_id: recipientId, text: body })
+        .select()
+        .single()
+      if (error || !data) {
+        console.error('send error', error)
+        showToast('Gagal mengirim. Pastikan kalian saling follow.')
+        return false
+      }
+      setMessages((prev) => [...prev, data])
+      return true
+    },
+    [currentUserId, requireAuth, showToast]
+  )
+
+  const markRead = useCallback(
+    async (peerId) => {
+      if (!currentUserId) return
+      const unread = messages.some((m) => m.sender_id === peerId && m.recipient_id === currentUserId && !m.read_at)
+      if (!unread) return
+      const now = new Date().toISOString()
+      setMessages((prev) => prev.map((m) => (m.sender_id === peerId && m.recipient_id === currentUserId && !m.read_at ? { ...m, read_at: now } : m)))
+      await supabase.from('messages').update({ read_at: now }).eq('sender_id', peerId).eq('recipient_id', currentUserId).is('read_at', null)
+    },
+    [currentUserId, messages]
+  )
+
+  const unreadCount = useMemo(
+    () => messages.filter((m) => m.recipient_id === currentUserId && !m.read_at).length,
+    [messages, currentUserId]
+  )
+
   const getAuthor = useCallback((id) => authors.find((a) => a.id === id), [authors])
 
   const updateMe = useCallback(
@@ -340,6 +406,12 @@ export function AppProvider({ children }) {
       likes,
       bookmarks,
       follows,
+      followedBy,
+      messages,
+      unreadCount,
+      refreshFollowers,
+      sendMessage,
+      markRead,
       toast,
       showToast,
       toggleLike,
@@ -361,7 +433,7 @@ export function AppProvider({ children }) {
       signOut,
     }),
     [
-      theme, toggleTheme, authors, authorsLoading, posts, postsLoading, drafts, likes, bookmarks, follows, toast, showToast,
+      theme, toggleTheme, authors, authorsLoading, posts, postsLoading, drafts, likes, bookmarks, follows, followedBy, messages, unreadCount, refreshFollowers, sendMessage, markRead, toast, showToast,
       toggleLike, toggleBookmark, toggleFollow, addComment, saveDraft, deleteDraft, publishPost, getAuthor, updateMe,
       currentUserId, session, authLoading, authModalOpen, signIn, signUp, signOut,
     ]

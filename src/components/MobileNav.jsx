@@ -1,18 +1,18 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, Compass, PenLine, Bookmark, User } from 'lucide-react'
+import { Home, Compass, PenLine, Users, MessageCircle, User } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 
 const itemClass = ({ isActive }) =>
   `flex flex-col items-center gap-1 text-[10px] ${isActive ? 'text-[var(--text)]' : 'text-[var(--text-soft)]'}`
 
 export default function MobileNav() {
-  const { currentUserId, getAuthor, setAuthModalOpen } = useApp()
+  const { currentUserId, getAuthor, setAuthModalOpen, unreadCount } = useApp()
   const me = getAuthor(currentUserId)
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur px-2 pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto flex max-w-md items-center justify-between px-4 py-2.5">
+      <div className="mx-auto flex max-w-md items-center justify-between px-2 py-2.5">
         <NavLink to="/" end className={itemClass}>
           <Home size={20} />
           Home
@@ -25,9 +25,16 @@ export default function MobileNav() {
           <PenLine size={20} />
           Write
         </NavLink>
-        <NavLink to="/bookmarks" className={itemClass}>
-          <Bookmark size={20} />
-          Saved
+        <NavLink to="/friends" className={itemClass}>
+          <Users size={20} />
+          Teman
+        </NavLink>
+        <NavLink to="/chat" className={itemClass}>
+          <span className="relative">
+            <MessageCircle size={20} />
+            {unreadCount > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-wine" />}
+          </span>
+          Pesan
         </NavLink>
         {currentUserId && me ? (
           <NavLink to={`/profile/${me.username}`} className={itemClass}>

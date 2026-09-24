@@ -1,12 +1,15 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { MessageCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 
 export default function AuthorCard({ author }) {
-  const { follows, toggleFollow, currentUserId } = useApp()
+  const { follows, followedBy, toggleFollow, currentUserId } = useApp()
   if (!author) return null
   const isMe = author.id === currentUserId
   const active = !!follows[author.id]
+  const followsMe = !!followedBy[author.id]
+  const isFriend = active && followsMe
 
   return (
     <div className="flex items-center justify-between gap-3">
@@ -18,16 +21,25 @@ export default function AuthorCard({ author }) {
         </div>
       </Link>
       {!isMe && (
-        <button
-          onClick={() => toggleFollow(author.id)}
-          className={`shrink-0 rounded-full border px-3 py-1 text-xs transition-colors ${
-            active
-              ? 'border-[var(--border)] text-[var(--text-soft)]'
-              : 'border-[var(--text)] text-[var(--text)] hover:bg-[var(--text)] hover:text-[var(--bg)]'
-          }`}
-        >
-          {active ? 'Mengikuti' : 'Follow'}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {isFriend && (
+            <Link to={`/chat/${author.username}`} aria-label="Kirim pesan" className="text-[var(--text-soft)] hover:text-[var(--text)]">
+              <MessageCircle size={18} />
+            </Link>
+          )}
+          <button
+            onClick={() => toggleFollow(author.id)}
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              active
+                ? 'border-[var(--border)] text-[var(--text-soft)]'
+                : followsMe
+                ? 'border-[var(--text)] bg-[var(--text)] text-[var(--bg)]'
+                : 'border-[var(--text)] text-[var(--text)] hover:bg-[var(--text)] hover:text-[var(--bg)]'
+            }`}
+          >
+            {active ? (isFriend ? 'Teman' : 'Mengikuti') : followsMe ? 'Follow Back' : 'Follow'}
+          </button>
+        </div>
       )}
     </div>
   )

@@ -14,6 +14,8 @@ import Stories from './pages/Stories.jsx'
 import Search from './pages/Search.jsx'
 import Profile from './pages/Profile.jsx'
 import Bookmarks from './pages/Bookmarks.jsx'
+import Friends from './pages/Friends.jsx'
+import Chat from './pages/Chat.jsx'
 
 export default function App() {
   return (
@@ -31,6 +33,9 @@ export default function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/bookmarks" element={<Bookmarks />} />
         <Route path="/profile/:username" element={<Profile />} />
+        <Route path="/friends" element={<Friends />} />
+        <Route path="/chat" element={<Chat />} />
+        <Route path="/chat/:username" element={<Chat />} />
       </Routes>
       <MobileNav />
       <Toast />
