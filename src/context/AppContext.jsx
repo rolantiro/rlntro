@@ -296,6 +296,22 @@ export function AppProvider({ children }) {
     [currentUserId, requireAuth, showToast, deleteDraft]
   )
 
+  const deletePost = useCallback(
+    async (postId) => {
+      if (!requireAuth()) return false
+      const { error, count } = await supabase.from('posts').delete({ count: 'exact' }).eq('id', postId).eq('author_id', currentUserId)
+      if (error || !count) {
+        console.error('delete post error', error)
+        showToast('Gagal menghapus tulisan')
+        return false
+      }
+      setPosts((prev) => prev.filter((p) => p.id !== postId))
+      showToast('Tulisan dihapus')
+      return true
+    },
+    [currentUserId, requireAuth, showToast]
+  )
+
   const refreshFollowers = useCallback(async () => {
     if (!currentUserId) return
     const { data } = await supabase.from('follows').select('follower_id').eq('following_id', currentUserId)
@@ -421,6 +437,7 @@ export function AppProvider({ children }) {
       saveDraft,
       deleteDraft,
       publishPost,
+      deletePost,
       getAuthor,
       updateMe,
       currentUserId,
@@ -434,7 +451,7 @@ export function AppProvider({ children }) {
     }),
     [
       theme, toggleTheme, authors, authorsLoading, posts, postsLoading, drafts, likes, bookmarks, follows, followedBy, messages, unreadCount, refreshFollowers, sendMessage, markRead, toast, showToast,
-      toggleLike, toggleBookmark, toggleFollow, addComment, saveDraft, deleteDraft, publishPost, getAuthor, updateMe,
+      toggleLike, toggleBookmark, toggleFollow, addComment, saveDraft, deleteDraft, publishPost, deletePost, getAuthor, updateMe,
       currentUserId, session, authLoading, authModalOpen, signIn, signUp, signOut,
     ]
   )

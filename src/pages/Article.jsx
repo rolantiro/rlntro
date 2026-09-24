@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { useParams, Link, Navigate } from 'react-router-dom'
-import { Heart, Bookmark, MessageCircle, Share2, Instagram } from 'lucide-react'
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom'
+import { Heart, Bookmark, MessageCircle, Share2, Instagram, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatDate } from '../lib/storage.js'
 import ReadingProgress from '../components/ReadingProgress.jsx'
@@ -11,8 +11,10 @@ const typeLabel = { poetry: 'Puisi', story: 'Cerita', quote: 'Quote' }
 
 export default function Article() {
   const { id } = useParams()
-  const { posts, postsLoading, getAuthor, likes, bookmarks, toggleLike, toggleBookmark, showToast } = useApp()
+  const { posts, postsLoading, getAuthor, likes, bookmarks, toggleLike, toggleBookmark, showToast, currentUserId, deletePost } = useApp()
+  const navigate = useNavigate()
   const [showExport, setShowExport] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const post = posts.find((p) => p.id === id)
   if (!post) {
@@ -22,6 +24,15 @@ export default function Article() {
 
   const author = getAuthor(post.authorId)
   const more = posts.filter((p) => p.authorId === post.authorId && p.id !== post.id).slice(0, 3)
+
+  async function remove() {
+    if (deleting) return
+    if (!window.confirm(`Hapus "${post.title}"? Tulisan, like, dan komentarnya akan hilang permanen.`)) return
+    setDeleting(true)
+    const ok = await deletePost(post.id)
+    if (ok) navigate(`/profile/${author?.username || ''}`, { replace: true })
+    else setDeleting(false)
+  }
 
   async function share() {
     const url = window.location.href
@@ -90,6 +101,15 @@ export default function Article() {
           >
             <Instagram size={15} /> Share to Instagram
           </button>
+          {post.authorId === currentUserId && (
+            <button
+              onClick={remove}
+              disabled={deleting}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border)] px-4 py-2.5 text-xs text-wine hover:border-wine disabled:opacity-50 md:ml-3 md:w-auto"
+            >
+              <Trash2 size={15} /> {deleting ? 'Menghapus…' : 'Hapus tulisan'}
+            </button>
+          )}
         </div>
 
         {more.length > 0 && (
