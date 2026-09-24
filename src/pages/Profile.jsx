@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Camera } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatDate } from '../lib/storage.js'
+import { supabase } from '../lib/supabaseClient.js'
 import PostCard from '../components/PostCard.jsx'
 import PoetryCard from '../components/PoetryCard.jsx'
 import QuoteCard from '../components/QuoteCard.jsx'
@@ -65,7 +66,7 @@ export default function Profile() {
       </div>
 
       {isMe && editing && (
-        <EditProfileForm author={author} onSave={(patch) => { updateMe(patch); setEditing(false) }} />
+        <EditProfileForm author={author} userId={currentUserId} onSave={async (patch) => { await updateMe(patch); setEditing(false) }} />
       )}
 
       <div className="mb-8 flex justify-center gap-6 border-b border-[var(--border)]">
@@ -115,12 +116,69 @@ export default function Profile() {
   )
 }
 
-function EditProfileForm({ author, onSave }) {
+// Crop tengah ke persegi 256px, JPEG — supaya file kecil (<100 KB)
+function resizeAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const size = 256
+      const side = Math.min(img.width, img.height)
+      const c = document.createElement('canvas')
+      c.width = c.height = size
+      c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size)
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('resize gagal'))), 'image/jpeg', 0.85)
+    }
+    img.onerror = () => reject(new Error('File bukan gambar'))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+function EditProfileForm({ author, userId, onSave }) {
+  const { showToast } = useApp()
   const [name, setName] = useState(author.name)
   const [bio, setBio] = useState(author.bio)
+  const [blob, setBlob] = useState(null)
+  const [preview, setPreview] = useState(author.avatar)
+  const [saving, setSaving] = useState(false)
+
+  async function pick(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const b = await resizeAvatar(file)
+      setBlob(b)
+      setPreview(URL.createObjectURL(b))
+    } catch (err) {
+      showToast(err.message)
+    }
+  }
+
+  async function save() {
+    setSaving(true)
+    const patch = { name, bio }
+    if (blob) {
+      const path = `${userId}/avatar.jpg`
+      const { error } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+      if (error) {
+        setSaving(false)
+        showToast('Gagal mengunggah foto')
+        return
+      }
+      patch.avatar = `${supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`
+    }
+    await onSave(patch)
+    setSaving(false)
+  }
 
   return (
     <div className="mx-auto mb-10 max-w-sm space-y-4">
+      <label className="relative mx-auto block h-24 w-24 cursor-pointer">
+        <img src={preview} alt="" className="h-24 w-24 rounded-full object-cover" />
+        <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--text)] text-[var(--bg)]">
+          <Camera size={15} />
+        </span>
+        <input type="file" accept="image/*" onChange={pick} className="hidden" />
+      </label>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -132,8 +190,8 @@ function EditProfileForm({ author, onSave }) {
         rows={2}
         className="w-full resize-none border-b border-[var(--border)] bg-transparent pb-2 text-center text-sm outline-none focus:border-[var(--text)]"
       />
-      <button onClick={() => onSave({ name, bio })} className="w-full rounded-full bg-[var(--text)] py-2 text-sm text-[var(--bg)]">
-        Simpan Perubahan
+      <button onClick={save} disabled={saving} className="w-full rounded-full bg-[var(--text)] py-2 text-sm text-[var(--bg)] disabled:opacity-50">
+        {saving ? 'Menyimpan…' : 'Simpan Perubahan'}
       </button>
     </div>
   )

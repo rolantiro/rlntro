@@ -297,7 +297,7 @@ export default function InstagramExportModal({ post, author, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 p-0 md:p-6">
-      <div className="w-full md:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-[var(--bg)] p-6">
+      <div className="w-full md:max-w-3xl max-h-[92dvh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-[var(--bg)] p-6">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-display text-xl">Share to Instagram</h3>
           <button onClick={onClose} aria-label="Close" className="text-[var(--text-soft)] hover:text-[var(--text)]">
@@ -441,7 +441,10 @@ export default function InstagramExportModal({ post, author, onClose }) {
               </div>
             )}
 
-            <div className="flex gap-3 pt-2">
+            <p className="text-xs text-[var(--text-soft)]">
+              Ruang Kata tidak memposting langsung ke Instagram. Unduh atau bagikan gambar ini, lalu unggah dari aplikasi Instagram-mu.
+            </p>
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex gap-3 border-t border-[var(--border)] bg-[var(--bg)] px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <button
                 onClick={downloadAll}
                 className="inline-flex items-center gap-2 rounded-full bg-[var(--text)] px-5 py-2.5 text-sm text-[var(--bg)] hover:opacity-90"
@@ -455,9 +458,6 @@ export default function InstagramExportModal({ post, author, onClose }) {
                 <Share2 size={15} /> Share
               </button>
             </div>
-            <p className="text-xs text-[var(--text-soft)]">
-              Ruang Kata tidak memposting langsung ke Instagram. Unduh atau bagikan gambar ini, lalu unggah dari aplikasi Instagram-mu.
-            </p>
           </div>
         </div>
       </div>
