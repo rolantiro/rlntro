@@ -9,7 +9,7 @@ const navLinkClass = ({ isActive }) =>
   }`
 
 export default function Navbar() {
-  const { theme, toggleTheme, currentUserId, getAuthor } = useApp()
+  const { theme, toggleTheme, currentUserId, getAuthor, setAuthModalOpen } = useApp()
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
   const me = getAuthor(currentUserId)
@@ -58,9 +58,18 @@ export default function Navbar() {
             <Feather size={14} /> Menulis
           </Link>
 
-          <Link to={`/profile/${me?.username}`} className="h-8 w-8 overflow-hidden rounded-full border border-[var(--border)]">
-            <img src={me?.avatar} alt={me?.name} className="h-full w-full object-cover" />
-          </Link>
+          {currentUserId && me ? (
+            <Link to={`/profile/${me.username}`} className="h-8 w-8 overflow-hidden rounded-full border border-[var(--border)]">
+              <img src={me.avatar} alt={me.name} className="h-full w-full object-cover" />
+            </Link>
+          ) : (
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="rounded-full border border-[var(--border)] px-4 py-1.5 text-sm hover:border-[var(--text)]"
+            >
+              Masuk
+            </button>
+          )}
         </div>
       </div>
     </header>

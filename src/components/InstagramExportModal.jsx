@@ -97,11 +97,20 @@ function drawPage(canvas, { w, h, style, lines, title, author, username, align, 
 
   const xPos = align === 'left' ? padX : align === 'right' ? w - padX : w / 2
 
-  // category/title label
+  // title label (wrapped, max 2 lines — titles can be longer than a category tag)
   ctx.font = `italic ${titleSize}px ${s.font}`
   ctx.fillStyle = s.sub
   if (title) {
-    ctx.fillText(title.toUpperCase(), xPos, Math.max(startY - lineHeight * 0.9, h * 0.08))
+    const titleLineHeight = titleSize * 1.35
+    let titleLines = wrapLines(ctx, title.toUpperCase(), maxWidth)
+    if (titleLines.length > 2) {
+      titleLines = [titleLines[0], titleLines[1].replace(/\s*\S*$/, '') + '…']
+    }
+    const titleBlockHeight = titleLines.length * titleLineHeight
+    const titleStartY = Math.max(startY - lineHeight * 0.4 - titleBlockHeight, h * 0.08)
+    titleLines.forEach((line, i) => {
+      ctx.fillText(line, xPos, titleStartY + i * titleLineHeight)
+    })
   }
 
   ctx.font = `${baseSize}px ${s.font}`
@@ -207,7 +216,7 @@ export default function InstagramExportModal({ post, author, onClose }) {
       h: activeFormat.h,
       style,
       lines: currentLines,
-      title: post.category,
+      title: post.title,
       author: author?.name,
       username: author?.username,
       align,
@@ -226,7 +235,7 @@ export default function InstagramExportModal({ post, author, onClose }) {
       h: activeFormat.h,
       style,
       lines,
-      title: post.category,
+      title: post.title,
       author: author?.name,
       username: author?.username,
       align,

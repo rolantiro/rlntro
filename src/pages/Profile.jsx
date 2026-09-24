@@ -11,12 +11,15 @@ const TABS = ['Stories', 'Poetry', 'Quotes', 'Bookmarks']
 
 export default function Profile() {
   const { username } = useParams()
-  const { authors, posts, bookmarks, follows, toggleFollow, currentUserId, updateMe, drafts, deleteDraft } = useApp()
+  const { authors, authorsLoading, posts, bookmarks, follows, toggleFollow, currentUserId, updateMe, drafts, deleteDraft } = useApp()
   const [tab, setTab] = useState('Stories')
   const [editing, setEditing] = useState(false)
 
   const author = authors.find((a) => a.username === username)
-  if (!author) return <Navigate to="/explore" replace />
+  if (!author) {
+    if (authorsLoading) return null
+    return <Navigate to="/explore" replace />
+  }
 
   const isMe = author.id === currentUserId
   const authorPosts = posts.filter((p) => p.authorId === author.id)

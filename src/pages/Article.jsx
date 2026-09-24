@@ -11,11 +11,14 @@ const typeLabel = { poetry: 'Puisi', story: 'Cerita', quote: 'Quote' }
 
 export default function Article() {
   const { id } = useParams()
-  const { posts, getAuthor, likes, bookmarks, toggleLike, toggleBookmark, showToast } = useApp()
+  const { posts, postsLoading, getAuthor, likes, bookmarks, toggleLike, toggleBookmark, showToast } = useApp()
   const [showExport, setShowExport] = useState(false)
 
   const post = posts.find((p) => p.id === id)
-  if (!post) return <Navigate to="/explore" replace />
+  if (!post) {
+    if (postsLoading) return null
+    return <Navigate to="/explore" replace />
+  }
 
   const author = getAuthor(post.authorId)
   const more = posts.filter((p) => p.authorId === post.authorId && p.id !== post.id).slice(0, 3)
@@ -81,14 +84,12 @@ export default function Article() {
               <Share2 size={18} /> Share
             </button>
           </div>
-          {post.type === 'poetry' && (
-            <button
-              onClick={() => setShowExport(true)}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border)] px-4 py-2.5 text-xs hover:border-[var(--text)] md:w-auto"
-            >
-              <Instagram size={15} /> Share to Instagram
-            </button>
-          )}
+          <button
+            onClick={() => setShowExport(true)}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border)] px-4 py-2.5 text-xs hover:border-[var(--text)] md:w-auto"
+          >
+            <Instagram size={15} /> Share to Instagram
+          </button>
         </div>
 
         {more.length > 0 && (

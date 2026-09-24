@@ -10,7 +10,7 @@ const AUTOSAVE_MS = 2000
 export default function Editor() {
   const { draftId } = useParams()
   const navigate = useNavigate()
-  const { drafts, saveDraft, deleteDraft, publishPost, showToast } = useApp()
+  const { drafts, saveDraft, publishPost, showToast, currentUserId, setAuthModalOpen } = useApp()
 
   const existing = drafts.find((d) => d.id === draftId)
 
@@ -20,20 +20,24 @@ export default function Editor() {
   const [poetryMode, setPoetryMode] = useState(existing?.type === 'poetry')
   const [showPreview, setShowPreview] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
-  const [id] = useState(existing?.id)
+  const idRef = useRef(existing?.id || null)
 
   const textareaRef = useRef(null)
 
   // autosave draft
   useEffect(() => {
+    if (!currentUserId) return
     if (!title && !content) return
-    const t = setTimeout(() => {
-      saveDraft({ id, title, content, cover, type: poetryMode ? 'poetry' : 'story' })
-      showToast('Draft tersimpan')
+    const t = setTimeout(async () => {
+      const savedId = await saveDraft({ id: idRef.current, title, content, cover, type: poetryMode ? 'poetry' : 'story' })
+      if (savedId) {
+        idRef.current = savedId
+        showToast('Draft tersimpan')
+      }
     }, AUTOSAVE_MS)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, cover, poetryMode])
+  }, [title, content, cover, poetryMode, currentUserId])
 
   function onCoverPick(e) {
     const file = e.target.files?.[0]
@@ -43,9 +47,27 @@ export default function Editor() {
     reader.readAsDataURL(file)
   }
 
-  function manualSaveDraft() {
-    saveDraft({ id, title, content, cover, type: poetryMode ? 'poetry' : 'story' })
-    showToast('Draft disimpan')
+  async function manualSaveDraft() {
+    const savedId = await saveDraft({ id: idRef.current, title, content, cover, type: poetryMode ? 'poetry' : 'story' })
+    if (savedId) {
+      idRef.current = savedId
+      showToast('Draft disimpan')
+    }
+  }
+
+  if (!currentUserId) {
+    return (
+      <main className="mx-auto max-w-read px-6 pt-24 pb-28 text-center">
+        <h1 className="font-display text-2xl mb-3">Masuk dulu untuk mulai menulis</h1>
+        <p className="text-sm text-[var(--text-soft)] mb-6">Tulisanmu tersimpan ke akunmu supaya bisa diakses kapan saja.</p>
+        <button
+          onClick={() => setAuthModalOpen(true)}
+          className="rounded-full bg-[var(--text)] px-6 py-2.5 text-sm text-[var(--bg)] hover:opacity-90"
+        >
+          Masuk / Daftar
+        </button>
+      </main>
+    )
   }
 
   return (
@@ -121,9 +143,16 @@ export default function Editor() {
       {showPublish && (
         <PublishModal
           onClose={() => setShowPublish(false)}
-          onPublish={(meta) => {
-            const post = publishPost({ id, title, content, cover, type: poetryMode ? 'poetry' : 'story', ...meta })
-            navigate(`/read/${post.id}`)
+          onPublish={async (meta) => {
+            const post = await publishPost({
+              id: idRef.current,
+              title,
+              content,
+              cover,
+              type: poetryMode ? 'poetry' : 'story',
+              ...meta,
+            })
+            if (post) navigate(`/read/${post.id}`)
           }}
         />
       )}

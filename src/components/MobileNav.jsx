@@ -7,7 +7,7 @@ const itemClass = ({ isActive }) =>
   `flex flex-col items-center gap-1 text-[10px] ${isActive ? 'text-[var(--text)]' : 'text-[var(--text-soft)]'}`
 
 export default function MobileNav() {
-  const { currentUserId, getAuthor } = useApp()
+  const { currentUserId, getAuthor, setAuthModalOpen } = useApp()
   const me = getAuthor(currentUserId)
 
   return (
@@ -29,10 +29,17 @@ export default function MobileNav() {
           <Bookmark size={20} />
           Saved
         </NavLink>
-        <NavLink to={`/profile/${me?.username}`} className={itemClass}>
-          <User size={20} />
-          Profile
-        </NavLink>
+        {currentUserId && me ? (
+          <NavLink to={`/profile/${me.username}`} className={itemClass}>
+            <User size={20} />
+            Profile
+          </NavLink>
+        ) : (
+          <button onClick={() => setAuthModalOpen(true)} className="flex flex-col items-center gap-1 text-[10px] text-[var(--text-soft)]">
+            <User size={20} />
+            Masuk
+          </button>
+        )}
       </div>
     </nav>
   )

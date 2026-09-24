@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import MobileNav from './components/MobileNav.jsx'
 import Toast from './components/Toast.jsx'
+import AuthModal from './components/AuthModal.jsx'
 import Landing from './pages/Landing.jsx'
 import Home from './pages/Home.jsx'
 import Article from './pages/Article.jsx'
@@ -33,6 +34,7 @@ export default function App() {
       </Routes>
       <MobileNav />
       <Toast />
+      <AuthModal />
     </div>
   )
 }

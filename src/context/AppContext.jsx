@@ -1,38 +1,29 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
-import { loadState, saveState, uid, readingTime } from '../lib/storage.js'
-import { seedAuthors, seedPosts } from '../data/seed.js'
+import { supabase, normalizeProfile, normalizePost } from '../lib/supabaseClient.js'
+import { loadState, saveState, readingTime } from '../lib/storage.js'
 
 const AppContext = createContext(null)
 
-const CURRENT_USER_ID = 'u_me'
-const meSeed = {
-  id: CURRENT_USER_ID,
-  name: 'Kamu',
-  username: 'kamu',
-  bio: 'Menulis sedikit demi sedikit, setiap hari.',
-  avatar: 'https://i.pravatar.cc/150?img=68',
-  followers: 12,
-  following: 6,
-}
+const POST_SELECT = '*, author:profiles(*), comments(*, author:profiles(*))'
 
 export function AppProvider({ children }) {
   const [theme, setTheme] = useState(() => loadState('theme', 'light'))
-  const [authors, setAuthors] = useState(() => loadState('authors', [...seedAuthors, meSeed]))
-  const [posts, setPosts] = useState(() => loadState('posts', seedPosts))
-  const [drafts, setDrafts] = useState(() => loadState('drafts', []))
-  const [likes, setLikes] = useState(() => loadState('likes', {})) // postId -> true
-  const [bookmarks, setBookmarks] = useState(() => loadState('bookmarks', {}))
-  const [follows, setFollows] = useState(() => loadState('follows', {})) // authorId -> true
+  const [session, setSession] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authors, setAuthors] = useState([])
+  const [authorsLoading, setAuthorsLoading] = useState(true)
+  const [posts, setPosts] = useState([])
+  const [postsLoading, setPostsLoading] = useState(true)
+  const [drafts, setDrafts] = useState([])
+  const [likes, setLikes] = useState({}) // postId -> true
+  const [bookmarks, setBookmarks] = useState({}) // postId -> true
+  const [follows, setFollows] = useState({}) // authorId -> true
   const [toast, setToast] = useState(null)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+
+  const currentUserId = session?.user?.id || null
 
   useEffect(() => saveState('theme', theme), [theme])
-  useEffect(() => saveState('authors', authors), [authors])
-  useEffect(() => saveState('posts', posts), [posts])
-  useEffect(() => saveState('drafts', drafts), [drafts])
-  useEffect(() => saveState('likes', likes), [likes])
-  useEffect(() => saveState('bookmarks', bookmarks), [bookmarks])
-  useEffect(() => saveState('follows', follows), [follows])
-
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
@@ -47,91 +38,303 @@ export function AppProvider({ children }) {
     setTheme((t) => (t === 'light' ? 'dark' : 'light'))
   }, [])
 
+  const fetchAuthors = useCallback(async () => {
+    const [{ data: profiles, error: e1 }, { data: stats, error: e2 }] = await Promise.all([
+      supabase.from('profiles').select('*'),
+      supabase.from('profile_stats').select('*'),
+    ])
+    if (e1) { console.error(e1); setAuthorsLoading(false); return }
+    const statsById = Object.fromEntries((stats || []).map((s) => [s.id, s]))
+    setAuthors(
+      (profiles || []).map((p) => ({
+        ...normalizeProfile(p),
+        followers: statsById[p.id]?.followers_count || 0,
+        following: statsById[p.id]?.following_count || 0,
+      }))
+    )
+    if (e2) console.error(e2)
+    setAuthorsLoading(false)
+  }, [])
+
+  const fetchPosts = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('posts')
+      .select(POST_SELECT)
+      .order('created_at', { ascending: false })
+    if (error) { console.error(error); setPostsLoading(false); return }
+    setPosts((data || []).map(normalizePost))
+    setPostsLoading(false)
+  }, [])
+
+  const fetchMine = useCallback(async (uid) => {
+    if (!uid) {
+      setLikes({})
+      setBookmarks({})
+      setFollows({})
+      setDrafts([])
+      return
+    }
+    const [{ data: likeRows }, { data: bmRows }, { data: followRows }, { data: draftRows }] = await Promise.all([
+      supabase.from('likes').select('post_id').eq('user_id', uid),
+      supabase.from('bookmarks').select('post_id').eq('user_id', uid),
+      supabase.from('follows').select('following_id').eq('follower_id', uid),
+      supabase.from('drafts').select('*').eq('author_id', uid).order('updated_at', { ascending: false }),
+    ])
+    setLikes(Object.fromEntries((likeRows || []).map((r) => [r.post_id, true])))
+    setBookmarks(Object.fromEntries((bmRows || []).map((r) => [r.post_id, true])))
+    setFollows(Object.fromEntries((followRows || []).map((r) => [r.following_id, true])))
+    setDrafts(
+      (draftRows || []).map((d) => ({
+        id: d.id,
+        title: d.title,
+        content: d.content,
+        cover: d.cover,
+        type: d.type,
+        updatedAt: d.updated_at,
+      }))
+    )
+  }, [])
+
+  useEffect(() => {
+    fetchAuthors()
+    fetchPosts()
+
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
+      fetchMine(s?.user?.id)
+      setAuthLoading(false)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
+      fetchMine(s?.user?.id)
+      if (s?.user?.id) fetchAuthors() // pick up newly-created profile row after signup
+    })
+
+    return () => sub.subscription.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const requireAuth = useCallback(() => {
+    if (!currentUserId) {
+      setAuthModalOpen(true)
+      return false
+    }
+    return true
+  }, [currentUserId])
+
   const toggleLike = useCallback(
-    (postId) => {
-      setLikes((prev) => {
-        const next = { ...prev, [postId]: !prev[postId] }
-        return next
-      })
-      setPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + (likes[postId] ? -1 : 1) } : p))
-      )
+    async (postId) => {
+      if (!requireAuth()) return
+      const wasLiked = !!likes[postId]
+      setLikes((prev) => ({ ...prev, [postId]: !wasLiked }))
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + (wasLiked ? -1 : 1) } : p)))
+
+      const { error } = wasLiked
+        ? await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', currentUserId)
+        : await supabase.from('likes').insert({ post_id: postId, user_id: currentUserId })
+
+      if (error) {
+        setLikes((prev) => ({ ...prev, [postId]: wasLiked }))
+        setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + (wasLiked ? 1 : -1) } : p)))
+        showToast('Gagal menyimpan like')
+      }
     },
-    [likes]
+    [likes, currentUserId, requireAuth, showToast]
   )
 
-  const toggleBookmark = useCallback((postId) => {
-    setBookmarks((prev) => {
-      const isNowOn = !prev[postId]
-      showToast(isNowOn ? 'Disimpan ke bookmark' : 'Dihapus dari bookmark')
-      return { ...prev, [postId]: isNowOn }
-    })
-  }, [showToast])
+  const toggleBookmark = useCallback(
+    async (postId) => {
+      if (!requireAuth()) return
+      const wasBookmarked = !!bookmarks[postId]
+      setBookmarks((prev) => ({ ...prev, [postId]: !wasBookmarked }))
+      showToast(wasBookmarked ? 'Dihapus dari bookmark' : 'Disimpan ke bookmark')
 
-  const toggleFollow = useCallback((authorId) => {
-    setFollows((prev) => ({ ...prev, [authorId]: !prev[authorId] }))
-  }, [])
+      const { error } = wasBookmarked
+        ? await supabase.from('bookmarks').delete().eq('post_id', postId).eq('user_id', currentUserId)
+        : await supabase.from('bookmarks').insert({ post_id: postId, user_id: currentUserId })
 
-  const addComment = useCallback((postId, text) => {
-    const comment = { id: uid('c'), authorId: CURRENT_USER_ID, text, createdAt: new Date().toISOString() }
-    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, comment] } : p)))
-  }, [])
-
-  const saveDraft = useCallback((draft) => {
-    setDrafts((prev) => {
-      const existingIdx = prev.findIndex((d) => d.id === draft.id)
-      if (existingIdx >= 0) {
-        const next = [...prev]
-        next[existingIdx] = { ...draft, updatedAt: new Date().toISOString() }
-        return next
+      if (error) {
+        setBookmarks((prev) => ({ ...prev, [postId]: wasBookmarked }))
+        showToast('Gagal menyimpan bookmark')
       }
-      return [...prev, { ...draft, id: draft.id || uid('draft'), updatedAt: new Date().toISOString() }]
-    })
-  }, [])
+    },
+    [bookmarks, currentUserId, requireAuth, showToast]
+  )
 
-  const deleteDraft = useCallback((draftId) => {
-    setDrafts((prev) => prev.filter((d) => d.id !== draftId))
-  }, [])
+  const toggleFollow = useCallback(
+    async (authorId) => {
+      if (!requireAuth()) return
+      const wasFollowing = !!follows[authorId]
+      setFollows((prev) => ({ ...prev, [authorId]: !wasFollowing }))
+
+      const { error } = wasFollowing
+        ? await supabase.from('follows').delete().eq('follower_id', currentUserId).eq('following_id', authorId)
+        : await supabase.from('follows').insert({ follower_id: currentUserId, following_id: authorId })
+
+      if (error) {
+        setFollows((prev) => ({ ...prev, [authorId]: wasFollowing }))
+        showToast('Gagal mengikuti')
+      } else {
+        fetchAuthors() // refresh follower/following counts
+      }
+    },
+    [follows, currentUserId, requireAuth, showToast, fetchAuthors]
+  )
+
+  const addComment = useCallback(
+    async (postId, text) => {
+      if (!requireAuth()) return
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({ post_id: postId, author_id: currentUserId, text })
+        .select('*, author:profiles(*)')
+        .single()
+
+      if (error || !data) {
+        showToast('Gagal mengirim komentar')
+        return
+      }
+
+      const comment = {
+        id: data.id,
+        authorId: data.author_id,
+        text: data.text,
+        createdAt: data.created_at,
+        _author: data.author,
+      }
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, comment] } : p)))
+    },
+    [currentUserId, requireAuth, showToast]
+  )
+
+  const saveDraft = useCallback(
+    async (draft) => {
+      if (!requireAuth()) return null
+      const payload = {
+        author_id: currentUserId,
+        title: draft.title || '',
+        content: draft.content || '',
+        cover: draft.cover || '',
+        type: draft.type || 'story',
+        updated_at: new Date().toISOString(),
+      }
+
+      if (draft.id) {
+        const { error } = await supabase.from('drafts').update(payload).eq('id', draft.id).eq('author_id', currentUserId)
+        if (error) {
+          showToast('Gagal menyimpan draft')
+          return draft.id
+        }
+        setDrafts((prev) => prev.map((d) => (d.id === draft.id ? { ...d, ...draft, updatedAt: payload.updated_at } : d)))
+        return draft.id
+      }
+
+      const { data, error } = await supabase.from('drafts').insert(payload).select().single()
+      if (error || !data) {
+        showToast('Gagal menyimpan draft')
+        return null
+      }
+      setDrafts((prev) => [
+        { id: data.id, title: data.title, content: data.content, cover: data.cover, type: data.type, updatedAt: data.updated_at },
+        ...prev,
+      ])
+      return data.id
+    },
+    [currentUserId, requireAuth, showToast]
+  )
+
+  const deleteDraft = useCallback(
+    async (draftId) => {
+      setDrafts((prev) => prev.filter((d) => d.id !== draftId))
+      const { error } = await supabase.from('drafts').delete().eq('id', draftId).eq('author_id', currentUserId)
+      if (error) {
+        showToast('Gagal menghapus draft')
+        fetchMine(currentUserId)
+      }
+    },
+    [currentUserId, showToast, fetchMine]
+  )
 
   const publishPost = useCallback(
-    (draft) => {
-      const post = {
-        id: uid('p'),
-        authorId: CURRENT_USER_ID,
+    async (draft) => {
+      if (!requireAuth()) return null
+      const payload = {
+        author_id: currentUserId,
         type: draft.type || 'story',
         title: draft.title || 'Tanpa Judul',
         subtitle: draft.subtitle || '',
-        excerpt: (draft.content || '').slice(0, 140),
         content: draft.content || '',
+        cover: draft.cover || '',
         category: draft.category || 'Personal',
         tags: draft.tags || [],
-        cover: draft.cover || '',
         visibility: draft.visibility || 'public',
-        createdAt: new Date().toISOString(),
-        likes: 0,
-        comments: [],
-        readingTime: readingTime(draft.content || ''),
+        reading_time: readingTime(draft.content || ''),
       }
+
+      const { data, error } = await supabase.from('posts').insert(payload).select(POST_SELECT).single()
+      if (error || !data) {
+        showToast('Gagal mempublikasikan')
+        return null
+      }
+
+      const post = normalizePost(data)
       setPosts((prev) => [post, ...prev])
       if (draft.id) deleteDraft(draft.id)
       showToast('Tulisan berhasil dipublikasikan')
       return post
     },
-    [deleteDraft, showToast]
+    [currentUserId, requireAuth, showToast, deleteDraft]
   )
 
   const getAuthor = useCallback((id) => authors.find((a) => a.id === id), [authors])
 
-  const updateMe = useCallback((patch) => {
-    setAuthors((prev) => prev.map((a) => (a.id === CURRENT_USER_ID ? { ...a, ...patch } : a)))
+  const updateMe = useCallback(
+    async (patch) => {
+      if (!currentUserId) return
+      const payload = {}
+      if (patch.name !== undefined) payload.name = patch.name
+      if (patch.bio !== undefined) payload.bio = patch.bio
+      if (patch.avatar !== undefined) payload.avatar_url = patch.avatar
+
+      const { error } = await supabase.from('profiles').update(payload).eq('id', currentUserId)
+      if (error) {
+        showToast('Gagal menyimpan profil')
+        return
+      }
+      setAuthors((prev) => prev.map((a) => (a.id === currentUserId ? { ...a, ...patch } : a)))
+      showToast('Profil diperbarui')
+    },
+    [currentUserId, showToast]
+  )
+
+  const signIn = useCallback(async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    return error
   }, [])
+
+  const signUp = useCallback(async (email, password, username, name) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { username, name } },
+    })
+    return error
+  }, [])
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut()
+    showToast('Berhasil keluar')
+  }, [showToast])
 
   const value = useMemo(
     () => ({
       theme,
       toggleTheme,
       authors,
+      authorsLoading,
       posts,
+      postsLoading,
       drafts,
       likes,
       bookmarks,
@@ -147,11 +350,19 @@ export function AppProvider({ children }) {
       publishPost,
       getAuthor,
       updateMe,
-      currentUserId: CURRENT_USER_ID,
+      currentUserId,
+      session,
+      authLoading,
+      authModalOpen,
+      setAuthModalOpen,
+      signIn,
+      signUp,
+      signOut,
     }),
     [
-      theme, toggleTheme, authors, posts, drafts, likes, bookmarks, follows, toast, showToast,
+      theme, toggleTheme, authors, authorsLoading, posts, postsLoading, drafts, likes, bookmarks, follows, toast, showToast,
       toggleLike, toggleBookmark, toggleFollow, addComment, saveDraft, deleteDraft, publishPost, getAuthor, updateMe,
+      currentUserId, session, authLoading, authModalOpen, signIn, signUp, signOut,
     ]
   )
 
