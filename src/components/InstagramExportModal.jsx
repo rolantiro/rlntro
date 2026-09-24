@@ -50,15 +50,35 @@ function wrapLines(ctx, text, maxWidth) {
   return lines
 }
 
-function paginate(lines, maxLinesPerPage) {
+const WORDS_PER_PAGE = 500
+
+// Pecah teks per halaman: maks WORDS_PER_PAGE kata, dipotong di batas baris/paragraf
+function splitPages(content) {
   const pages = []
-  for (let i = 0; i < lines.length; i += maxLinesPerPage) {
-    pages.push(lines.slice(i, i + maxLinesPerPage))
+  let cur = []
+  let count = 0
+  const flush = () => {
+    const txt = cur.join('\n').replace(/^\n+|\n+$/g, '')
+    if (txt) pages.push(txt)
+    cur = []
+    count = 0
   }
-  return pages.length ? pages : [[]]
+  content.split('\n').forEach((line) => {
+    const words = line.split(/\s+/).filter(Boolean)
+    if (words.length > WORDS_PER_PAGE) {
+      flush()
+      for (let i = 0; i < words.length; i += WORDS_PER_PAGE) pages.push(words.slice(i, i + WORDS_PER_PAGE).join(' '))
+      return
+    }
+    if (count + words.length > WORDS_PER_PAGE) flush()
+    cur.push(line)
+    count += words.length
+  })
+  flush()
+  return pages.length ? pages : ['']
 }
 
-function drawPage(canvas, { w, h, style, lines, title, author, username, align, position, branding, coverImg, pageInfo, fontScale }) {
+function drawPage(canvas, { w, h, style, text, title, author, username, align, position, branding, coverImg, pageInfo, fontScale }) {
   const ctx = canvas.getContext('2d')
   canvas.width = w
   canvas.height = h
@@ -83,8 +103,18 @@ function drawPage(canvas, { w, h, style, lines, title, author, username, align, 
   const padX = w * 0.12
   const maxWidth = w - padX * 2
   const baseSize = (s.big ? w * 0.052 : w * 0.042) * fontScale
-  const lineHeight = baseSize * 1.7
   const titleSize = baseSize * 0.62
+
+  // font body mengecil otomatis sampai teks muat (sisakan 40% tinggi untuk judul/penulis/branding)
+  let bodySize = baseSize
+  let lines
+  for (;;) {
+    ctx.font = `${bodySize}px ${s.font}`
+    lines = wrapLines(ctx, text, maxWidth)
+    if (lines.length * bodySize * 1.7 <= h * 0.6 || bodySize <= w * 0.01) break
+    bodySize *= 0.95
+  }
+  const lineHeight = bodySize * 1.7
 
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = align
@@ -113,7 +143,7 @@ function drawPage(canvas, { w, h, style, lines, title, author, username, align, 
     })
   }
 
-  ctx.font = `${baseSize}px ${s.font}`
+  ctx.font = `${bodySize}px ${s.font}`
   ctx.fillStyle = s.text
   lines.forEach((line, i) => {
     ctx.fillText(line, xPos, startY + i * lineHeight)
@@ -181,29 +211,10 @@ export default function InstagramExportModal({ post, author, onClose }) {
     }
   }, [style, post.cover])
 
-  const pages = useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = activeFormat.w
-    canvas.height = activeFormat.h
-    const ctx = canvas.getContext('2d')
-    const baseSize = (STYLES[style].big ? activeFormat.w * 0.052 : activeFormat.w * 0.042) * fontScale
-    ctx.font = `${baseSize}px ${STYLES[style].font}`
-    const maxWidth = activeFormat.w - activeFormat.w * 0.12 * 2
-    const lines = wrapLines(ctx, post.content, maxWidth)
-
-    const lineHeight = baseSize * 1.7
-    const reserved = activeFormat.h * 0.4 // space for title/author/branding/margins
-    const maxLinesPerPage = Math.max(3, Math.floor((activeFormat.h - reserved) / lineHeight))
-
-    if (!carousel || format === 'story') {
-      // story auto-splits into multiple story pages if too long; single post = one image unless carousel toggled
-      return paginate(lines, maxLinesPerPage)
-    }
-    return paginate(lines, maxLinesPerPage)
-  }, [post.content, activeFormat, style, fontScale, carousel, format])
+  const pages = useMemo(() => splitPages(post.content), [post.content])
 
   const effectivePages = carousel || pages.length > 1 ? pages : [pages[0]]
-  const currentLines = effectivePages[Math.min(pageIndex, effectivePages.length - 1)] || []
+  const currentText = effectivePages[Math.min(pageIndex, effectivePages.length - 1)] || ''
 
   useEffect(() => {
     setPageIndex(0)
@@ -215,7 +226,7 @@ export default function InstagramExportModal({ post, author, onClose }) {
       w: activeFormat.w,
       h: activeFormat.h,
       style,
-      lines: currentLines,
+      text: currentText,
       title: post.title,
       author: author?.name,
       username: author?.username,
@@ -226,15 +237,15 @@ export default function InstagramExportModal({ post, author, onClose }) {
       pageInfo: effectivePages.length > 1 ? { index: pageIndex, total: effectivePages.length } : null,
       fontScale,
     })
-  }, [previewRef, activeFormat, style, currentLines, post.category, author, align, position, brandingApp, brandingUser, coverImg, effectivePages.length, pageIndex, fontScale])
+  }, [previewRef, activeFormat, style, currentText, post.category, author, align, position, brandingApp, brandingUser, coverImg, effectivePages.length, pageIndex, fontScale])
 
-  function renderExportCanvas(lines, pageInfo) {
+  function renderExportCanvas(text, pageInfo) {
     const canvas = exportRef.current
     drawPage(canvas, {
       w: activeFormat.w,
       h: activeFormat.h,
       style,
-      lines,
+      text,
       title: post.title,
       author: author?.name,
       username: author?.username,
@@ -271,7 +282,7 @@ export default function InstagramExportModal({ post, author, onClose }) {
   }
 
   async function shareCurrent() {
-    const canvas = renderExportCanvas(currentLines, effectivePages.length > 1 ? { index: pageIndex, total: effectivePages.length } : null)
+    const canvas = renderExportCanvas(currentText, effectivePages.length > 1 ? { index: pageIndex, total: effectivePages.length } : null)
     const blob = await canvasToBlob(canvas)
     const slug = slugify(post.title)
     const file = new File([blob], `${slug}-instagram-${format}.jpg`, { type: 'image/jpeg' })
